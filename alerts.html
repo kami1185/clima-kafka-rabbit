@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Panel de Alertas Climáticas</title>
+    <style>
+        body { font-family: sans-serif; background-color: #2b2b2b; color: #ff5555; padding: 20px; }
+        h1 { text-align: center; }
+        #alerts-list { list-style-type: none; padding: 0; }
+        #alerts-list li { background-color: #4e3434; padding: 15px; margin-bottom: 10px; border-radius: 5px; font-size: 1.1em; }
+    </style>
+</head>
+<body>
+    <h1>--[ Alertas Climáticas en Tiempo Real ]--</h1>
+    <ul id="alerts-list"></ul>
+    <script>
+        const alertsList = document.getElementById('alerts-list');
+        const ws = new WebSocket('ws://localhost:8081');
+        ws.onmessage = (event) => {
+            console.log(event.data)
+            const alert = JSON.parse(event.data);
+            const li = document.createElement('li');
+            li.textContent = `[${new Date(alert.timestamp).toLocaleTimeString()}] ${alert.message}`;
+            alertsList.prepend(li); // Añadir la alerta al principio de la lista
+        };
+    </script>
+</body>
+</html>

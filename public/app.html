@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Alertas del clima</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --fondo: #E9EEF1;
+    --papel: #FFFFFF;
+    --tinta: #17222C;
+    --gris: #5B6B78;
+    --linea: #D3DCE2;
+    --accion: #1E4F8A;
+    --accion-tinta: #FFFFFF;
+    --amarilla: #E5AE00;
+    --naranja: #DD6517;
+    --roja: #C02A2A;
+    --ok: #2E7D4F;
+    --texto: "Barlow", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --titular: "Barlow Condensed", "Arial Narrow", system-ui, sans-serif;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --fondo: #10171D;
+      --papel: #19232C;
+      --tinta: #E4EBF0;
+      --gris: #93A3AF;
+      --linea: #2A3742;
+      --accion: #6FA3E0;
+      --accion-tinta: #0E1A27;
+      --ok: #5CC28A;
+      color-scheme: dark;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--fondo); color: var(--tinta); font: 400 1rem/1.5 var(--texto); }
+
+  .top { max-width: 1180px; margin: 0 auto; padding: 2rem 1.25rem 1.25rem; display: flex; align-items: end; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+  h1 { font: 600 clamp(2.4rem, 6vw, 3.6rem)/0.95 var(--titular); margin: 0; letter-spacing: -0.01em; }
+  .bajada { margin: .4rem 0 0; color: var(--gris); max-width: 52ch; }
+  .conexion { display: inline-flex; align-items: center; gap: .5rem; font-size: .9rem; color: var(--gris); }
+  .conexion::before { content: ""; width: .6rem; height: .6rem; border-radius: 50%; background: var(--linea); }
+  .conexion[data-estado="on"]::before { background: var(--ok); }
+  .conexion[data-estado="espera"]::before { background: var(--amarilla); }
+
+  .grid { max-width: 1180px; margin: 0 auto; padding: 0 1.25rem 3rem; display: grid; gap: 1.5rem; grid-template-columns: 1fr; }
+  @media (min-width: 900px) { .grid { grid-template-columns: minmax(320px, 400px) 1fr; align-items: start; } }
+
+  .panel { background: var(--papel); border: 1px solid var(--linea); border-radius: 10px; padding: 1.5rem; }
+  h2 { font: 600 1.6rem/1.1 var(--titular); margin: 0 0 1rem; }
+
+  fieldset { border: 0; margin: 0 0 1.25rem; padding: 0; }
+  legend, .etiqueta { font-weight: 600; margin-bottom: .45rem; padding: 0; display: block; }
+  .ayuda { color: var(--gris); font-size: .875rem; margin: .4rem 0 0; }
+  input[type="text"], input[type="email"], input[type="tel"] {
+    width: 100%; font: inherit; color: inherit; background: var(--fondo); border: 1px solid var(--linea);
+    border-radius: 6px; padding: .6rem .75rem;
+  }
+  input:focus-visible { outline: 2px solid var(--accion); outline-offset: 1px; }
+  .campo { margin-bottom: 1.25rem; }
+
+  .opciones { display: flex; flex-wrap: wrap; gap: .5rem; }
+  .opcion { position: relative; }
+  .opcion input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+  .opcion span {
+    display: inline-flex; align-items: center; gap: .45rem; padding: .45rem .8rem;
+    border: 1px solid var(--linea); border-radius: 999px; font-size: .95rem; background: var(--papel); cursor: pointer;
+  }
+  .opcion input:checked + span { border-color: var(--tinta); background: var(--tinta); color: var(--papel); }
+  .opcion input:focus-visible + span { outline: 2px solid var(--accion); outline-offset: 2px; }
+  .opcion input:disabled + span { cursor: default; opacity: .85; }
+
+  .nivel-opcion span::before { content: ""; width: .75rem; height: .75rem; border-radius: 2px; background: var(--c); }
+  .nivel-opcion input:checked + span { background: var(--papel); color: var(--tinta); border-color: var(--c); box-shadow: inset 0 0 0 1px var(--c); }
+
+  .extra { margin-top: .75rem; }
+  .boton {
+    font: 600 1rem var(--texto); border: 0; border-radius: 6px; padding: .75rem 1.25rem; cursor: pointer;
+    background: var(--accion); color: var(--accion-tinta); width: 100%;
+  }
+  .boton:focus-visible, .enlace:focus-visible { outline: 2px solid var(--tinta); outline-offset: 2px; }
+  .boton:disabled { opacity: .6; cursor: progress; }
+  .boton.secundario { background: transparent; color: var(--roja); border: 1px solid var(--linea); }
+  .errores { color: var(--roja); margin: 0 0 1rem; padding-left: 1.1rem; }
+  .errores:empty { display: none; }
+
+  .perfil dl { display: grid; grid-template-columns: auto 1fr; gap: .35rem 1rem; margin: 0 0 1.25rem; }
+  .perfil dt { color: var(--gris); }
+  .perfil dd { margin: 0; }
+  .claves { font-size: .875rem; color: var(--gris); margin: 0 0 1.25rem; }
+
+  .feed-cabecera { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; flex-wrap: wrap; margin-bottom: .75rem; }
+  .feed-cabecera h2 { margin: 0; }
+  .enlace { background: none; border: 0; padding: 0; font: inherit; color: var(--accion); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+  .pendientes { background: var(--papel); border: 1px solid var(--linea); border-left: 4px solid var(--accion); border-radius: 6px; padding: .75rem 1rem; margin: 0 0 1rem; }
+
+  .lista { list-style: none; margin: 0; padding: 0; display: grid; gap: .75rem; }
+  .alerta {
+    --c: var(--amarilla);
+    display: grid; grid-template-columns: 8px 1fr auto; background: var(--papel);
+    border: 1px solid var(--linea); border-radius: 8px; overflow: hidden;
+  }
+  .alerta[data-nivel="naranja"] { --c: var(--naranja); }
+  .alerta[data-nivel="roja"] { --c: var(--roja); }
+  .alerta .banda { background: var(--c); }
+  .alerta .cuerpo { padding: .9rem 1rem; min-width: 0; }
+  .alerta .meta { display: flex; gap: .75rem; font-size: .875rem; color: var(--gris); }
+  .alerta .nivel { color: var(--c); font-weight: 600; }
+  .alerta[data-nivel="amarilla"] .nivel { color: #8A6800; }
+  @media (prefers-color-scheme: dark) { .alerta[data-nivel="amarilla"] .nivel { color: var(--amarilla); } }
+  .alerta .titulo { margin: .15rem 0 0; font-weight: 600; }
+  .alerta .valor { font: 600 2.4rem/1 var(--titular); padding: .9rem 1.1rem; align-self: center; white-space: nowrap; }
+  .alerta .valor small { font-size: 1.1rem; color: var(--gris); margin-left: .15rem; }
+  .entregas { list-style: none; margin: .5rem 0 0; padding: 0; font-size: .875rem; color: var(--gris); }
+  .entregas li[data-estado="enviado"] { color: var(--ok); }
+  .entregas li[data-estado="fallido"] { color: var(--roja); }
+  .alerta.nueva { animation: llegada .9s ease-out; }
+  @keyframes llegada { from { box-shadow: 0 0 0 3px var(--c); } to { box-shadow: 0 0 0 0 transparent; } }
+  @media (prefers-reduced-motion: reduce) { .alerta.nueva { animation: none; } }
+
+  .vacio { color: var(--gris); background: var(--papel); border: 1px dashed var(--linea); border-radius: 8px; padding: 2rem 1.25rem; text-align: center; margin: 0; }
+  [hidden] { display: none !important; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+</style>
+</head>
+<body>
+<header class="top">
+  <div>
+    <h1>Alertas del clima</h1>
+    <p class="bajada">Elige las estaciones que te importan y te avisamos cuando el tiempo se ponga peligroso, aunque tengas la app cerrada.</p>
+  </div>
+  <span id="conexion" class="conexion" data-estado="off" role="status">Sin suscripción</span>
+</header>
+
+<main class="grid">
+  <section class="panel" aria-labelledby="titulo-suscripcion">
+    <h2 id="titulo-suscripcion">Suscríbete</h2>
+
+    <form id="form" novalidate>
+      <ul id="errores" class="errores" role="alert"></ul>
+
+      <div class="campo">
+        <label class="etiqueta" for="nombre">Tu nombre</label>
+        <input id="nombre" name="nombre" type="text" autocomplete="name" required>
+      </div>
+
+      <fieldset>
+        <legend>Estaciones</legend>
+        <div class="opciones">
+          <label class="opcion"><input type="checkbox" name="estaciones" value="STATION-01" checked><span>Estación 01</span></label>
+          <label class="opcion"><input type="checkbox" name="estaciones" value="STATION-02"><span>Estación 02</span></label>
+          <label class="opcion"><input type="checkbox" name="estaciones" value="STATION-03"><span>Estación 03</span></label>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Qué quieres vigilar</legend>
+        <div class="opciones">
+          <label class="opcion"><input type="checkbox" name="tipos" value="temperatura" checked><span>Temperatura</span></label>
+          <label class="opcion"><input type="checkbox" name="tipos" value="viento" checked><span>Viento</span></label>
+          <label class="opcion"><input type="checkbox" name="tipos" value="humedad"><span>Humedad</span></label>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Avisarme desde</legend>
+        <div class="opciones">
+          <label class="opcion nivel-opcion" style="--c: var(--amarilla)"><input type="radio" name="nivelMinimo" value="amarilla"><span>Amarilla</span></label>
+          <label class="opcion nivel-opcion" style="--c: var(--naranja)"><input type="radio" name="nivelMinimo" value="naranja" checked><span>Naranja</span></label>
+          <label class="opcion nivel-opcion" style="--c: var(--roja)"><input type="radio" name="nivelMinimo" value="roja"><span>Roja</span></label>
+        </div>
+        <p class="ayuda">Recibirás este nivel y los más graves. La amarilla llega con frecuencia.</p>
+      </fieldset>
+
+      <fieldset>
+        <legend>Dónde recibirlas</legend>
+        <div class="opciones">
+          <label class="opcion"><input type="checkbox" checked disabled><span>En esta app</span></label>
+          <label class="opcion"><input type="checkbox" name="canales" value="email" id="canal-email"><span>Correo</span></label>
+          <label class="opcion"><input type="checkbox" name="canales" value="sms" id="canal-sms"><span>SMS</span></label>
+        </div>
+        <div class="extra" id="extra-email" hidden>
+          <label class="etiqueta" for="email">Correo</label>
+          <input id="email" name="email" type="email" autocomplete="email" placeholder="nombre@ejemplo.com">
+        </div>
+        <div class="extra" id="extra-sms" hidden>
+          <label class="etiqueta" for="telefono">Teléfono móvil</label>
+          <input id="telefono" name="telefono" type="tel" autocomplete="tel" placeholder="+57 300 123 4567">
+        </div>
+        <p class="ayuda">El correo y el SMS son simulados: los verás en los registros de los workers.</p>
+      </fieldset>
+
+      <button class="boton" type="submit" id="btn-suscribir">Suscribirme</button>
+    </form>
+
+    <div id="perfil" class="perfil" hidden>
+      <dl id="perfil-datos"></dl>
+      <p class="claves" id="perfil-claves"></p>
+      <button class="boton secundario" type="button" id="btn-cancelar">Cancelar suscripción</button>
+    </div>
+  </section>
+
+  <section aria-labelledby="titulo-feed">
+    <div class="feed-cabecera">
+      <h2 id="titulo-feed">Tus alertas</h2>
+      <button class="enlace" type="button" id="btn-avisos" hidden>Activar avisos del navegador</button>
+    </div>
+    <p id="pendientes" class="pendientes" hidden></p>
+    <ol id="lista" class="lista" aria-live="polite"></ol>
+    <p id="vacio" class="vacio">Suscríbete para empezar. Cuando una estación supere tu nivel, la alerta aparecerá aquí.</p>
+  </section>
+</main>
+
+<script>
+  const API = '/api/suscripciones';
+  const CLAVE_LOCAL = 'clima.usuarioId';
+  const NOMBRES_CANAL = { email: 'Correo', sms: 'SMS' };
+  const MAX_ALERTAS = 60;
+
+  const $ = (id) => document.getElementById(id);
+  const form = $('form'), lista = $('lista'), vacio = $('vacio');
+
+  let usuario = null;
+  let ws = null;
+  let temporizadorReconexion = null;
+  const estadosSinTarjeta = new Map(); // estados que llegaron antes que la alerta
+
+  // ---------- Formulario ----------
+  const alternarExtra = (canal) => { $('extra-' + canal).hidden = !$('canal-' + canal).checked; };
+  ['email', 'sms'].forEach((c) => $('canal-' + c).addEventListener('change', () => alternarExtra(c)));
+
+  const valores = (nombre) => [...form.querySelectorAll(`input[name="${nombre}"]:checked`)].map((i) => i.value);
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const boton = $('btn-suscribir');
+    boton.disabled = true;
+    $('errores').innerHTML = '';
+    try {
+      const res = await fetch(API, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nombre: $('nombre').value,
+          email: $('email').value,
+          telefono: $('telefono').value,
+          estaciones: valores('estaciones'),
+          tipos: valores('tipos'),
+          nivelMinimo: valores('nivelMinimo')[0],
+          canales: valores('canales'),
+        }),
+      });
+      const datos = await res.json();
+      if (!res.ok) return mostrarErrores(datos.errores || ['No se pudo crear la suscripción.']);
+      localStorage.setItem(CLAVE_LOCAL, datos.id);
+      await cargarPerfil(datos.id);
+    } catch {
+      mostrarErrores(['No hay conexión con el servidor. Comprueba que notifications-service esté en marcha.']);
+    } finally {
+      boton.disabled = false;
+    }
+  });
+
+  function mostrarErrores(errores) {
+    $('errores').innerHTML = '';
+    errores.forEach((t) => { const li = document.createElement('li'); li.textContent = t; $('errores').append(li); });
+  }
+
+  // ---------- Perfil ----------
+  async function cargarPerfil(id) {
+    const res = await fetch(`${API}/${id}`);
+    if (!res.ok) { localStorage.removeItem(CLAVE_LOCAL); return; }
+    usuario = await res.json();
+
+    const filas = [
+      ['Nombre', usuario.nombre],
+      ['Estaciones', usuario.estaciones.join(', ')],
+      ['Vigilando', usuario.tipos.join(', ')],
+      ['Desde', 'alerta ' + usuario.nivelMinimo],
+      ['Canales', ['App', ...usuario.canales.map((c) => NOMBRES_CANAL[c])].join(', ')],
+    ];
+    $('perfil-datos').innerHTML = '';
+    filas.forEach(([k, v]) => {
+      const dt = document.createElement('dt'); dt.textContent = k;
+      const dd = document.createElement('dd'); dd.textContent = v;
+      $('perfil-datos').append(dt, dd);
+    });
+    $('perfil-claves').textContent = `Tu cola en RabbitMQ está enlazada con ${usuario.routingKeys.length} routing keys, por ejemplo ${usuario.routingKeys[0]}.`;
+    $('titulo-suscripcion').textContent = 'Tu suscripción';
+    form.hidden = true;
+    $('perfil').hidden = false;
+    vacio.textContent = 'Todavía no hay alertas. Cuando una estación supere tu nivel, la verás aquí.';
+    actualizarBotonAvisos();
+    conectar();
+  }
+
+  $('btn-cancelar').addEventListener('click', async () => {
+    if (!usuario) return;
+    await fetch(`${API}/${usuario.id}`, { method: 'DELETE' });
+    reiniciar();
+  });
+
+  function reiniciar() {
+    usuario = null;
+    localStorage.removeItem(CLAVE_LOCAL);
+    clearTimeout(temporizadorReconexion);
+    if (ws) { ws.onclose = null; ws.close(); ws = null; }
+    lista.innerHTML = '';
+    $('pendientes').hidden = true;
+    $('perfil').hidden = true;
+    form.hidden = false;
+    $('titulo-suscripcion').textContent = 'Suscríbete';
+    vacio.textContent = 'Suscríbete para empezar. Cuando una estación supere tu nivel, la alerta aparecerá aquí.';
+    vacio.hidden = false;
+    $('btn-avisos').hidden = true;
+    estadoConexion('off', 'Sin suscripción');
+  }
+
+  // ---------- WebSocket ----------
+  function estadoConexion(estado, texto) {
+    $('conexion').dataset.estado = estado;
+    $('conexion').textContent = texto;
+  }
+
+  function conectar() {
+    if (!usuario) return;
+    const protocolo = location.protocol === 'https:' ? 'wss' : 'ws';
+    ws = new WebSocket(`${protocolo}://${location.host}/ws?usuario=${encodeURIComponent(usuario.id)}`);
+    estadoConexion('espera', 'Conectando…');
+
+    ws.onopen = () => estadoConexion('on', 'Recibiendo alertas');
+    ws.onmessage = (e) => {
+      const datos = JSON.parse(e.data);
+      if (datos.kind === 'bienvenida') mostrarPendientes(datos.pendientes);
+      else if (datos.kind === 'alerta') agregarAlerta(datos.alerta);
+      else if (datos.kind === 'estado') actualizarEntrega(datos);
+    };
+    ws.onclose = (e) => {
+      if (e.code === 4004) return reiniciar(); // la suscripción ya no existe
+      if (!usuario) return;
+      estadoConexion('espera', 'Sin conexión, reintentando…');
+      temporizadorReconexion = setTimeout(conectar, 3000);
+    };
+  }
+
+  function mostrarPendientes(n) {
+    const p = $('pendientes');
+    if (n > 0) {
+      p.textContent = n === 1
+        ? 'Mientras estabas fuera llegó 1 alerta. RabbitMQ la guardó en tu cola y aquí la tienes.'
+        : `Mientras estabas fuera llegaron ${n} alertas. RabbitMQ las guardó en tu cola y aquí las tienes.`;
+      p.hidden = false;
+    } else {
+      p.hidden = true;
+    }
+  }
+
+  // ---------- Alertas ----------
+  function agregarAlerta(a) {
+    vacio.hidden = true;
+    const li = document.createElement('li');
+    li.className = 'alerta nueva';
+    li.dataset.nivel = a.nivel;
+    li.dataset.id = a.id;
+    li.addEventListener('animationend', () => li.classList.remove('nueva'), { once: true });
+
+    const banda = document.createElement('div'); banda.className = 'banda';
+    const cuerpo = document.createElement('div'); cuerpo.className = 'cuerpo';
+
+    const meta = document.createElement('div'); meta.className = 'meta';
+    const nivel = document.createElement('span'); nivel.className = 'nivel'; nivel.textContent = `Alerta ${a.nivel}`;
+    const hora = document.createElement('time'); hora.dateTime = a.timestamp;
+    hora.textContent = new Date(a.timestamp).toLocaleTimeString();
+    meta.append(nivel, hora);
+
+    const titulo = document.createElement('p'); titulo.className = 'titulo';
+    titulo.textContent = `${a.titulo} en ${a.stationId}`;
+
+    const entregas = document.createElement('ul'); entregas.className = 'entregas';
+    cuerpo.append(meta, titulo, entregas);
+
+    const valor = document.createElement('div'); valor.className = 'valor';
+    valor.append(String(a.valor));
+    const unidad = document.createElement('small'); unidad.textContent = a.unidad;
+    valor.append(unidad);
+
+    li.append(banda, cuerpo, valor);
+    lista.prepend(li);
+    while (lista.children.length > MAX_ALERTAS) lista.lastElementChild.remove();
+
+    (estadosSinTarjeta.get(a.id) || []).forEach(actualizarEntrega);
+    estadosSinTarjeta.delete(a.id);
+
+    avisoNavegador(a);
+  }
+
+  function actualizarEntrega(e) {
+    const tarjeta = lista.querySelector(`[data-id="${CSS.escape(e.alertaId)}"]`);
+    if (!tarjeta) {
+      if (!estadosSinTarjeta.has(e.alertaId)) estadosSinTarjeta.set(e.alertaId, []);
+      estadosSinTarjeta.get(e.alertaId).push(e);
+      return;
+    }
+    const entregas = tarjeta.querySelector('.entregas');
+    let fila = entregas.querySelector(`[data-canal="${e.canal}"]`);
+    if (!fila) {
+      fila = document.createElement('li');
+      fila.dataset.canal = e.canal;
+      entregas.append(fila);
+    }
+    const canal = NOMBRES_CANAL[e.canal];
+    fila.dataset.estado = e.estado;
+    if (e.estado === 'enviado') fila.textContent = `${canal} enviado a ${e.destino} (intento ${e.intento}, worker ${e.worker})`;
+    if (e.estado === 'reintento') fila.textContent = `${canal}: falló el intento ${e.intento} de ${e.maxIntentos}, se reintenta en ${e.reintentoEnMs / 1000} s`;
+    if (e.estado === 'fallido') fila.textContent = `${canal} no entregado tras ${e.intento} intentos. Quedó en la cola de fallidas.`;
+  }
+
+  // ---------- Avisos del navegador (simula una notificación push del sistema) ----------
+  function actualizarBotonAvisos() {
+    $('btn-avisos').hidden = !('Notification' in window) || Notification.permission !== 'default';
+  }
+  $('btn-avisos').addEventListener('click', async () => {
+    await Notification.requestPermission();
+    actualizarBotonAvisos();
+  });
+  function avisoNavegador(a) {
+    if ('Notification' in window && Notification.permission === 'granted' && document.hidden) {
+      new Notification(`Alerta ${a.nivel}: ${a.titulo}`, { body: `${a.valor} ${a.unidad} en ${a.stationId}`, tag: a.id });
+    }
+  }
+
+  // ---------- Inicio ----------
+  const guardado = localStorage.getItem(CLAVE_LOCAL);
+  if (guardado) cargarPerfil(guardado).catch(() => estadoConexion('off', 'Sin conexión con el servidor'));
+</script>
+</body>
+</html>

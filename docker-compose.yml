@@ -1,0 +1,152 @@
+# Configuración común para los servicios Node.js (se reutiliza con <<: *app)
+x-app: &app
+  build: .
+  restart: on-failure
+  environment:
+    RABBITMQ_URL: amqp://clima:clima123@rabbitmq:5672
+
+services:
+  # ==================== KAFKA: streaming de datos de sensores ====================
+  kafka:
+    image: confluentinc/cp-kafka:latest
+    environment:
+      CLUSTER_ID: 'ULPlA8IRSzaJ3fEL32Ss3g'
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: 'broker,controller'
+      KAFKA_CONTROLLER_QUORUM_VOTERS: '1@kafka:9093'
+
+      # --- Configuración de Red para Comunicación Interna ---
+      KAFKA_LISTENERS: 'INTERNAL://0.0.0.0:9092,CONTROLLER://kafka:9093'
+      KAFKA_ADVERTISED_LISTENERS: 'INTERNAL://kafka:9092'
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'CONTROLLER:PLAINTEXT,INTERNAL:PLAINTEXT'
+      KAFKA_INTER_BROKER_LISTENER_NAME: 'INTERNAL'
+      KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
+
+      # --- Configuraciones para un solo nodo ---
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 3000
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-topics --bootstrap-server localhost:9092 --list"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  # Crea los topics una sola vez y termina (reemplaza a KAFKA_CREATE_TOPICS,
+  # que la imagen de Confluent no reconoce)
+  kafka-init:
+    image: confluentinc/cp-kafka:latest
+    depends_on:
+      kafka:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic weather-data   --partitions 3 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic weather-alerts --partitions 3 --replication-factor 1
+        echo "Topics disponibles:" && kafka-topics --bootstrap-server kafka:9092 --list
+    restart: "no"
+
+  # ==================== RABBITMQ: notificaciones a usuarios ====================
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    hostname: rabbitmq   # necesario para que los datos persistan entre reinicios
+    environment:
+      RABBITMQ_DEFAULT_USER: clima
+      RABBITMQ_DEFAULT_PASS: clima123
+    ports:
+      - "5672:5672"     # AMQP
+      - "15672:15672"   # Consola web de administración
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "check_port_connectivity"]
+      interval: 10s
+      timeout: 10s
+      retries: 6
+      start_period: 20s
+
+  # ==================== Servicios del flujo Kafka (originales) ====================
+  producer:
+    <<: *app
+    command: node producer.js
+    depends_on:
+      kafka-init:
+        condition: service_completed_successfully
+
+  dashboard-backend:
+    <<: *app
+    command: node dashboard-backend.js
+    ports:
+      - "8090:8080"
+    depends_on:
+      kafka-init:
+        condition: service_completed_successfully
+
+  alerts-processor:
+    <<: *app
+    command: node alerts-processor.js
+    depends_on:
+      kafka-init:
+        condition: service_completed_successfully
+
+  alerts-backend:
+    <<: *app
+    command: node alerts-backend.js
+    ports:
+      - "8081:8081"
+    depends_on:
+      kafka-init:
+        condition: service_completed_successfully
+
+  # ==================== Integración Kafka → RabbitMQ ====================
+  kafka-rabbit-bridge:
+    <<: *app
+    command: node kafka-rabbit-bridge.js
+    depends_on:
+      kafka-init:
+        condition: service_completed_successfully
+      rabbitmq:
+        condition: service_healthy
+
+  notifications-service:
+    <<: *app
+    command: node notifications-service.js
+    environment:
+      RABBITMQ_URL: amqp://clima:clima123@rabbitmq:5672
+      DATA_DIR: /data
+    ports:
+      - "3000:3000"
+    volumes:
+      - notificaciones-data:/data
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  worker-email:
+    <<: *app
+    command: node notification-worker.js
+    environment:
+      RABBITMQ_URL: amqp://clima:clima123@rabbitmq:5672
+      CANAL: email
+      TASA_FALLO: "0.2"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  worker-sms:
+    <<: *app
+    command: node notification-worker.js
+    environment:
+      RABBITMQ_URL: amqp://clima:clima123@rabbitmq:5672
+      CANAL: sms
+      TASA_FALLO: "0.3"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+volumes:
+  rabbitmq-data:
+  notificaciones-data:

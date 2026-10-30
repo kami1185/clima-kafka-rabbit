@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Panel del Clima en Tiempo Real</title>
+    <style>
+        body { font-family: monospace; background-color: #1a1a1a; color: #00ff41; padding: 20px; }
+        h1 { text-align: center; }
+        #data-container { border: 1px solid #00ff41; padding: 15px; font-size: 1.2em; min-height: 150px; white-space: pre; }
+    </style>
+</head>
+<body>
+    <h1>--[ Panel del Clima en Tiempo Real con Kafka ]--</h1>
+    <div id="data-container">Conectando al servidor...</div>
+
+    <script>
+        const dataContainer = document.getElementById('data-container');
+        const ws = new WebSocket('ws://localhost:8090');
+
+        ws.onopen = () => {
+            console.log('Conectado al servidor WebSocket.');
+            dataContainer.textContent = 'Esperando datos del sensor...';
+        };
+
+        ws.onmessage = (event) => {
+            console.log('Dato recibido:', event.data);
+            const weatherData = JSON.parse(event.data);
+            dataContainer.textContent = `
+Estación    : ${weatherData.stationId}
+Timestamp   : ${weatherData.timestamp}
+Temperatura : ${weatherData.temperature}°C
+Humedad     : ${weatherData.humidity}%
+Viento      : ${weatherData.windSpeed} km/h
+            `;
+        };
+
+        ws.onclose = () => {
+            console.log('Desconectado del servidor WebSocket.');
+            dataContainer.textContent = 'Conexión perdida. Intenta recargar la página.';
+            dataContainer.style.color = '#ff4141';
+        };
+
+        ws.onerror = (error) => {
+            console.error('Error de WebSocket:', error);
+            dataContainer.textContent = 'Error en la conexión.';
+        };
+    </script>
+</body>
+</html>
